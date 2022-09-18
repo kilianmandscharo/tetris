@@ -1,6 +1,0 @@
-make --dry-run --always-make --keep-going --print-directory
-make: Entering directory '/home/dominik/coding/tetris'
-cc    -c -o tetris.o tetris.c
-gcc tetris.o -o output -lncurses
-make: Leaving directory '/home/dominik/coding/tetris'
- 
