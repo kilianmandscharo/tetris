@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <time.h>
 
+int const BOARD_WIDTH = 18;
+int const BOARD_HEIGHT = 25;
 int const WINDOW_HEIGHT = 25;
 int const WINDOW_WIDTH = 20; 
 
@@ -26,7 +28,6 @@ typedef struct {
 typedef struct {
     Block *blocks;
     ShapeType type;
-    bool active;
 } Shape;
 
 void draw_borders() {
@@ -37,23 +38,38 @@ void draw_borders() {
 }
 
 void draw_shape(Shape *shape) {
+    init_pair(I_SHAPE, COLOR_BLACK, COLOR_BLUE);
+    init_pair(O_SHAPE, COLOR_BLACK, COLOR_CYAN);
+    init_pair(L_SHAPE, COLOR_BLACK, COLOR_YELLOW);
+    init_pair(J_SHAPE, COLOR_BLACK, COLOR_GREEN);
+    init_pair(S_SHAPE, COLOR_BLACK, COLOR_MAGENTA);
+    init_pair(Z_SHAPE, COLOR_BLACK, COLOR_WHITE);
+    init_pair(T_SHAPE, COLOR_BLACK, COLOR_RED);
+
+    attron(COLOR_PAIR(shape->type));
     for (int i = 0; i < 4; i++) {
-        mvprintw(shape->blocks[i].y, shape->blocks[i].x, "X");
+        mvprintw(shape->blocks[i].y, shape->blocks[i].x, " ");
     }
+    attroff(COLOR_PAIR(shape->type));
 }
 
-void draw_board(Shape **board, int shape_counter) {
-    for (int i = 0; i < shape_counter; i++) {
-        draw_shape(board[i]);
-    }
-}
+void draw_board(int board[BOARD_HEIGHT][BOARD_WIDTH]) {
+    init_pair(I_SHAPE, COLOR_BLACK, COLOR_BLUE);
+    init_pair(O_SHAPE, COLOR_BLACK, COLOR_CYAN);
+    init_pair(L_SHAPE, COLOR_BLACK, COLOR_YELLOW);
+    init_pair(J_SHAPE, COLOR_BLACK, COLOR_GREEN);
+    init_pair(S_SHAPE, COLOR_BLACK, COLOR_MAGENTA);
+    init_pair(Z_SHAPE, COLOR_BLACK, COLOR_WHITE);
+    init_pair(T_SHAPE, COLOR_BLACK, COLOR_RED);
 
-Shape ** create_board() {
-    Shape **board = malloc(sizeof(Shape *));
-    if (board == NULL) {
-        printf("Memory could not be allocated./n");
-    } else {
-        return board;
+    for (int i = 0; i < BOARD_HEIGHT; i++) {
+        for (int j = 0; j < BOARD_WIDTH; j++) {
+            if (board[i][j] != -1) {
+                attron(COLOR_PAIR(board[i][j]));
+                mvprintw(i, j, " ");
+                attroff(COLOR_PAIR(board[i][j]));
+            }
+        }
     }
 }
 
@@ -176,17 +192,12 @@ Shape * create_shape(ShapeType shape_type) {
     }
     shape->type = shape_type; 
     shape->blocks = blocks;
-    shape->active = true;
     return shape;
 }
 
-void add_shape(Shape **board, Shape *new_shape, int *shape_counter) {
-    Shape **new_board = realloc(board, (*shape_counter + 1) * sizeof(Shape *)); 
-    if (new_board == NULL) {
-        printf("Memory could not be allocated./n");
-    } else {
-        new_board[*shape_counter] = new_shape;
-        (*shape_counter)++;
+void add_shape(int board[BOARD_HEIGHT][BOARD_WIDTH], Shape *shape) {
+    for (int i = 0; i < 4; i++) {
+        board[shape->blocks[i].y][shape->blocks[i].x] = shape->type;
     }
 }
 
@@ -196,23 +207,14 @@ void tick(Shape *shape) {
     }
 }
 
-bool shape_collision(Shape *shape_1, Shape *shape_2) {
-    if (shape_2->active) {
-        return false;
-    }
-    Block *blocks_1 = shape_1->blocks;
-    Block *blocks_2 = shape_2->blocks;
+void erase_shape(Shape *shape) {
     for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            if (blocks_1[i].x == blocks_2[j].x && blocks_1[i].y == blocks_2[j].y) {
-                return true;
-            }
-        }
+        mvprintw(shape->blocks[i].y, shape->blocks[i].x, " ");
     }
-    return false;
+
 }
 
-bool downwards_collision(Shape *shape, Shape **board, int shape_counter) {
+bool downwards_collision(Shape *shape, int board[BOARD_HEIGHT][BOARD_WIDTH]) {
     Block *blocks = shape->blocks;
 
     // Collision with the bottom screen border
@@ -222,13 +224,9 @@ bool downwards_collision(Shape *shape, Shape **board, int shape_counter) {
         }
     } 
 
-    if (shape_counter <= 1) {
-        return false;
-    }
-
     // Collision with other shapes
-    for (int i = 0; i < shape_counter; i++) {
-        if (shape_collision(shape, board[i])) {
+    for (int i = 0; i < 4; i++) {
+        if (board[blocks[i].y][blocks[i].x] != -1) {
             return true;
         }
     }
@@ -246,33 +244,36 @@ int main () {
     initscr();
     cbreak();
 
-    Shape **board = create_board();
+    int board[BOARD_HEIGHT][BOARD_WIDTH];
+    for (int i = 0; i < BOARD_HEIGHT; i++) {
+        for (int j = 0; j < BOARD_WIDTH; j++) {
+            board[i][j] = -1;
+        }
+    } 
+
     Shape *active_shape = create_shape(random_shape_type());
-    int shape_counter = 0;
-    add_shape(board, active_shape, &shape_counter);
 
     WINDOW *win = newwin(WINDOW_HEIGHT, WINDOW_WIDTH, 0, 0);
     wrefresh(win);
     curs_set(0);
     start_color();
 
-    draw_board(board, shape_counter);
     draw_borders();
+    draw_shape(active_shape);
 
     refresh();
     sleep(1);
 
     while(true) {
-        clear();
-        bool collision = downwards_collision(active_shape, board, shape_counter); 
+        erase_shape(active_shape);
+        bool collision = downwards_collision(active_shape, board); 
         if (collision) {
-            active_shape->active = false;
+            add_shape(board, active_shape);
             active_shape = create_shape(random_shape_type());
-            add_shape(board, active_shape, &shape_counter);
+            draw_board(board);
         }
         tick(active_shape);
-        draw_board(board, shape_counter);
-        draw_borders();
+        draw_shape(active_shape);
         refresh();
         sleep(1);
     }
